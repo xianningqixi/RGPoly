@@ -80,6 +80,45 @@ python scripts/run_python.py backend/reports/runtime_strategy_status.py
 The original Windows process helpers are kept under `ops/windows/legacy/`.
 Treat them as migration references until they are modernized to the new runner.
 
+## RGPoly v2 Rewrite
+
+The `rgpoly/` package is the new fast self-use engine. It is designed to run
+beside the legacy scripts while the trading path is migrated.
+
+Key differences from the legacy script stack:
+
+- SQLite WAL state store instead of many append-only CSV files.
+- Async Polymarket API polling for watched-wallet activity and order books.
+- One normalized path: activity -> signal -> risk check -> order intent -> receipt.
+- Dry-run execution is implemented first; live CLOB execution remains explicitly
+  gated and should be wired only after dry-run parity is checked.
+
+Create a local config and state database:
+
+```powershell
+python -m rgpoly init-config --path .\config\rgpoly.toml
+python -m rgpoly --config .\config\rgpoly.toml migrate
+```
+
+Poll watched wallets once:
+
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml poll-once
+python -m rgpoly --config .\config\rgpoly.toml intents
+```
+
+Run continuously:
+
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml run
+```
+
+Process ready intents as dry-run receipts:
+
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml execute
+```
+
 ## Safety Defaults
 
 Simulation and reporting scripts do not require private keys.

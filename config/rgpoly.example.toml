@@ -1,0 +1,27 @@
+[engine]
+db_path = ".runtime/rgpoly.sqlite"
+poll_interval_ms = 750
+activity_limit = 20
+http_timeout_sec = 4.0
+dry_run = true
+
+[execution]
+live_enabled_env = "RGPOLY_LIVE_ENABLED"
+ack_value = "I_UNDERSTAND_REAL_MONEY_RISK"
+max_daily_usdc = 50.0
+max_open_intents = 25
+tick_size = "0.01"
+
+[[wallet_copy]]
+name = "btc_directional_copy"
+enabled = true
+stake_usdc = 10.0
+max_price = 0.80
+min_source_usdc = 3.0
+max_signal_age_sec = 120
+required_title_keywords = ["bitcoin", "btc"]
+blocked_title_keywords = []
+allowed_outcomes = ["Yes", "No"]
+
+[wallet_copy.wallets]
+creamcream_btc_directional = "0x6e1d5040d0ac73709b0621f620d2a60b80d2d0fa"

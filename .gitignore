@@ -11,6 +11,8 @@ venv/
 .env
 .env.*
 !.env.example
+config/rgpoly.toml
+config/*.local.toml
 *.pem
 *.key
 *.p12
@@ -19,6 +21,7 @@ id_rsa*
 *.secret
 
 # Runtime data, logs, generated reports, and execution state
+.runtime/
 *.csv
 !*.csv.example
 *.json
