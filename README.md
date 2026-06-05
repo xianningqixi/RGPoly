@@ -1,75 +1,119 @@
-# RGPoly
+# RGPoly 使用手册
 
-RGPoly 是一个自用的 Polymarket 钱包跟单交易引擎。当前仓库只保留 v2：
-监控目标钱包、生成信号、做风控、生成订单意图，然后 dry-run 或实盘下单。
+RGPoly 是一个自用 Polymarket 钱包跟单交易工具。它做四件事：
 
-## 配置在哪里
+1. 监控你配置的钱包。
+2. 发现目标钱包买入后生成信号。
+3. 按你的价格、金额、关键词、风控条件筛选。
+4. 生成订单；dry-run 模式只模拟，live 模式会真实下单。
 
-你平时主要改这两个地方：
+## 你每天怎么用
 
-- `config/rgpoly.toml`：本地实际运行配置，默认不提交到 GitHub。
-- `config/rgpoly.example.toml`：仓库里的配置模板，用来复制出本地配置。
+在项目根目录打开 PowerShell：
 
-如果你本地还没有 `config/rgpoly.toml`，先生成：
+```powershell
+cd C:\Users\王大喜\Documents\Codex\2026-06-05\files-mentioned-by-the-user-polymarket\work\polymarket-copytrading-dev
+```
+
+开第一个窗口，启动中文控制台：
+
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml dashboard-server
+```
+
+浏览器打开：
+
+```text
+http://127.0.0.1:8765/
+```
+
+开第二个窗口，先 dry-run 跑：
+
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml run --dry-run
+```
+
+确认信号、拒绝原因、订单都符合预期后，再开实盘：
+
+```powershell
+$env:RGPOLY_LIVE_ENABLED="I_UNDERSTAND_REAL_MONEY_RISK"
+python -m rgpoly --config .\config\rgpoly.toml run --live --execute-limit 1
+```
+
+`run --live` 是会真实下单的命令。刚开始保留 `--execute-limit 1`。
+
+## 配置改哪里
+
+你主要改这个文件：
+
+```text
+config\rgpoly.toml
+```
+
+这个文件是本地实际运行配置，默认不会提交到 GitHub。模板文件是：
+
+```text
+config\rgpoly.example.toml
+```
+
+如果本地配置不存在：
 
 ```powershell
 python -m rgpoly init-config --path .\config\rgpoly.toml
 ```
 
-配置文件里最重要的是：
+## 最重要的配置项
+
+执行模式：
 
 ```toml
-[engine]
-db_path = ".runtime/rgpoly.sqlite"       # 本地 SQLite 数据库
-poll_interval_ms = 750                   # 轮询间隔，毫秒
-activity_limit = 20                      # 每个钱包每轮拉取多少条活动
-http_timeout_sec = 4.0                   # Polymarket API 超时
-
 [execution]
-mode = "dry_run"                         # manual | dry_run | live
-execute_limit_per_loop = 10              # 每轮最多执行多少个 ready intent
-max_daily_usdc = 50.0                    # 每日最大花费
-max_open_intents = 25                    # 最多保留多少个待执行 intent
-order_type = "FOK"                       # FOK | FAK
+mode = "dry_run"            # manual | dry_run | live
+execute_limit_per_loop = 10
+max_daily_usdc = 50.0
+max_open_intents = 25
+order_type = "FOK"
 ```
 
-每个 `[[wallet_copy]]` 是一个跟单策略。你要改跟哪个钱包、每单多少 USDC、
-最高接受价格、关键词过滤、允许结果，就改这里：
+含义：
+
+- `manual`：只监控，只生成待执行订单，不自动成交。
+- `dry_run`：模拟成交，不花真钱。
+- `live`：真实下单。
+
+跟单策略：
 
 ```toml
 [[wallet_copy]]
 name = "smart_crypto_copy"
 enabled = true
 stake_usdc = 10.0
+min_entry_price = 0.10
 max_price = 0.65
+max_source_to_ask_gap = 0.01
+min_ask_depth_usdc = 30.0
+min_source_usdc = 3.0
 max_signal_age_sec = 8
-required_title_keywords = ["bitcoin", "btc", "ethereum", "eth"]
+required_title_keywords = ["bitcoin", "btc", "ethereum", "eth", "solana", "sol", "xrp"]
+blocked_title_keywords = []
 allowed_outcomes = ["Up", "Down", "Yes", "No"]
 
 [wallet_copy.wallets]
-alias = "0x..."
+my_wallet_alias = "0x..."
 ```
 
-私钥和 Polymarket API key 不写进配置文件，放环境变量。
+常改字段：
 
-## 项目结构
+- `enabled`：这个策略是否启用。
+- `stake_usdc`：每次跟单买多少钱。
+- `max_price`：最高接受价格，高于这个价格不追。
+- `max_signal_age_sec`：信号最多允许多旧，越小越快。
+- `required_title_keywords`：市场标题必须包含这些关键词之一。
+- `blocked_title_keywords`：标题命中这些词就拒绝。
+- `allowed_outcomes`：允许买哪些结果。
+- `[wallet_copy.wallets]`：要监控的钱包地址。
 
-```text
-rgpoly/                   核心交易引擎
-  strategies/             钱包跟单策略
-config/                   配置模板
-docs/                     架构、安全、数据说明
-ops/windows/              Windows 启动、停止、状态脚本
-tests/                    单元测试
-```
-
-运行链路：
-
-```text
-目标钱包活动 -> 信号 -> 风控 -> 订单意图 -> dry-run 回执或实盘回执
-```
-
-## 安装
+## 第一次安装
 
 ```powershell
 python -m venv .venv
@@ -80,60 +124,9 @@ python -m rgpoly --config .\config\rgpoly.toml migrate
 python -m rgpoly --config .\config\rgpoly.toml doctor
 ```
 
-## 本地前端
+## 实盘前准备
 
-当前前端是一个本地静态控制台，由 SQLite 数据库生成 HTML。
-
-生成页面：
-
-```powershell
-python -m rgpoly --config .\config\rgpoly.toml dashboard --output .\.runtime\index.html
-```
-
-拉起本地前端：
-
-```powershell
-python -m http.server 8765 --bind 127.0.0.1 --directory .runtime
-```
-
-浏览器打开：
-
-```text
-http://127.0.0.1:8765/
-```
-
-注意：页面是静态 HTML。你跑完 `poll-once`、`run` 或 `execute` 后，需要重新生成
-`.runtime/index.html` 才能看到最新数据。
-
-## Dry-Run 测试
-
-拉取一次目标钱包活动：
-
-```powershell
-python -m rgpoly --config .\config\rgpoly.toml poll-once
-```
-
-查看待执行订单：
-
-```powershell
-python -m rgpoly --config .\config\rgpoly.toml intents
-```
-
-连续 dry-run：
-
-```powershell
-python -m rgpoly --config .\config\rgpoly.toml run --dry-run
-```
-
-只监控不执行：
-
-```powershell
-python -m rgpoly --config .\config\rgpoly.toml run --manual
-```
-
-## 实盘
-
-先设置环境变量。真实值不要提交到 GitHub。
+密钥不写进 `config\rgpoly.toml`，放 PowerShell 环境变量：
 
 ```powershell
 $env:PRIVATE_KEY="..."
@@ -144,7 +137,7 @@ $env:POLY_SIGNATURE_TYPE="3"
 $env:POLY_PROXY_ADDRESS="0x..."
 ```
 
-如果你只有私钥，没有 L2 API key，可以派生：
+只有私钥、没有 Polymarket L2 API key 时：
 
 ```powershell
 python -m rgpoly --config .\config\rgpoly.toml derive-api-key
@@ -157,40 +150,45 @@ $env:RGPOLY_LIVE_ENABLED="I_UNDERSTAND_REAL_MONEY_RISK"
 python -m rgpoly --config .\config\rgpoly.toml doctor --live --check-client
 ```
 
-小额度启动实盘，每轮最多下 1 单：
-
-```powershell
-python -m rgpoly --config .\config\rgpoly.toml run --live --execute-limit 1
-```
-
-Windows 后台启动：
-
-```powershell
-.\ops\windows\start_rgpoly_v2.ps1 -Config config\rgpoly.toml -Mode live -ExecuteLimit 1
-.\ops\windows\view_rgpoly_v2_status.ps1 -Config config\rgpoly.toml -Mode live
-.\ops\windows\stop_rgpoly_v2.ps1
-```
-
 ## 常用命令
 
 ```powershell
+# 检查配置、数据库、ready intent 数量
 python -m rgpoly --config .\config\rgpoly.toml doctor
-python -m rgpoly --config .\config\rgpoly.toml status
+
+# 拉一次钱包活动
 python -m rgpoly --config .\config\rgpoly.toml poll-once
+
+# 看当前统计
+python -m rgpoly --config .\config\rgpoly.toml status
+
+# 看待执行订单
+python -m rgpoly --config .\config\rgpoly.toml intents
+
+# 中文控制台
+python -m rgpoly --config .\config\rgpoly.toml dashboard-server
+
+# 连续模拟
 python -m rgpoly --config .\config\rgpoly.toml run --dry-run
+
+# 连续实盘
 python -m rgpoly --config .\config\rgpoly.toml run --live --execute-limit 1
-python -m rgpoly --config .\config\rgpoly.toml execute
-python -m rgpoly --config .\config\rgpoly.toml execute --live --limit 1
-python -m rgpoly --config .\config\rgpoly.toml dashboard --output .\.runtime\index.html
 ```
 
-## 为什么之前实盘不会下单
+## 前端看到什么
 
-之前的 v2 有 live executor，但 `rgpoly run` 只负责监控和生成 ready intent，
-不会自动执行。现在 `run --live` 已经接通完整闭环：每轮轮询后会消费 ready
-intent，并提交到 Polymarket CLOB。
+中文控制台会显示：
 
-## 安全提醒
+- 钱包活动数量。
+- 信号数量、通过数量、拒绝数量。
+- 待执行订单。
+- 模拟成交、实盘成交、失败订单。
+- 最近信号和拒绝原因。
+- 最近执行回执。
 
-实盘前用低余额独立钱包。先 dry-run，看清楚信号、拒绝原因、ready intent 和回执。
-刚开始用 `--execute-limit 1` 和小的 `stake_usdc`。确认你所在地区和平台规则允许交易。
+控制台直接读 `.runtime\rgpoly.sqlite`，刷新浏览器就能看到最新数据。
+
+## 这个项目不会自动帮你判断能不能赚钱
+
+它只是一个快速跟单执行工具。是否该跟、跟谁、多少钱、什么价格上限，都由
+`config\rgpoly.toml` 控制。实盘前先小金额 dry-run，看清楚拒绝原因和订单行为。

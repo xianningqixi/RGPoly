@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +56,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     dashboard = sub.add_parser("dashboard")
     dashboard.add_argument("--output", type=Path, default=Path(".runtime/rgpoly_dashboard.html"))
+
+    dashboard_server = sub.add_parser("dashboard-server")
+    dashboard_server.add_argument("--host", default="127.0.0.1")
+    dashboard_server.add_argument("--port", type=int, default=8765)
 
     export = sub.add_parser("export-csv")
     export.add_argument("--table", choices=["activity", "signals", "intents", "receipts"], required=True)
@@ -274,6 +279,51 @@ def _dashboard(config_path: Path, output: Path) -> int:
         store.close()
 
 
+def _dashboard_server(config_path: Path, host: str, port: int) -> int:
+    from .dashboard import render_html
+
+    config = load_config(config_path)
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            if self.path not in {"/", "/index.html", "/health"}:
+                self.send_error(404)
+                return
+            if self.path == "/health":
+                payload = b"ok"
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+            store = Store(config.engine.db_path)
+            try:
+                payload = render_html(store).encode("utf-8")
+            finally:
+                store.close()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, format: str, *args: Any) -> None:
+            return
+
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"dashboard: http://{host}:{port}/")
+    print(f"config: {config_path}")
+    print(f"db: {config.engine.db_path}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("dashboard stopped")
+    finally:
+        server.server_close()
+    return 0
+
+
 def _export_csv(config_path: Path, table: str, output: Path) -> int:
     from .dashboard import export_table
 
@@ -324,6 +374,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "dashboard":
         return _dashboard(args.config, args.output)
+
+    if args.command == "dashboard-server":
+        return _dashboard_server(args.config, args.host, args.port)
 
     if args.command == "export-csv":
         return _export_csv(args.config, args.table, args.output)
