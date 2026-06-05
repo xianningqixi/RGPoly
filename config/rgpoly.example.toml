@@ -1,11 +1,14 @@
 [engine]
+# Local SQLite runtime database. Runtime data is not committed.
 db_path = ".runtime/rgpoly.sqlite"
+# Poll interval in milliseconds. Smaller is faster and heavier on APIs.
 poll_interval_ms = 750
 activity_limit = 20
 http_timeout_sec = 4.0
 
 [execution]
-mode = "dry_run" # manual | dry_run | live
+# manual = monitor only; dry_run = simulated fills; live = real orders.
+mode = "dry_run"
 execute_limit_per_loop = 10
 live_enabled_env = "RGPOLY_LIVE_ENABLED"
 ack_value = "I_UNDERSTAND_REAL_MONEY_RISK"
@@ -16,6 +19,7 @@ default_neg_risk = false
 order_type = "FOK"
 
 [[wallet_copy]]
+# Each wallet_copy block is one copy-trading strategy.
 name = "btc_directional_copy"
 enabled = true
 stake_usdc = 10.0

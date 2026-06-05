@@ -16,12 +16,11 @@ class DashboardTests(unittest.TestCase):
         store = Store(db_path)
         try:
             html = render_html(store)
-            self.assertIn("RGPoly v2 Dashboard", html)
-            self.assertIn("intents_ready", html)
+            self.assertIn("RGPoly 控制台", html)
+            self.assertIn("待执行订单", html)
         finally:
             store.close()
 
 
 if __name__ == "__main__":
     unittest.main()
-

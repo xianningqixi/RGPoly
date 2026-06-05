@@ -9,13 +9,74 @@ from .models import iso_utc
 from .store import Store
 
 
-def _table(headers: list[str], rows: Iterable[dict[str, object]]) -> str:
-    head = "".join(f"<th>{html.escape(name)}</th>" for name in headers)
+Column = tuple[str, str]
+
+
+SUMMARY_LABELS = {
+    "activity": "钱包活动",
+    "signals": "信号总数",
+    "signals_approved": "通过信号",
+    "signals_rejected": "拒绝信号",
+    "intents_ready": "待执行订单",
+    "intents_dry_run": "模拟成交",
+    "intents_executed": "实盘成交",
+    "intents_failed": "失败订单",
+    "receipts": "执行回执",
+}
+
+VALUE_LABELS = {
+    "READY": "待执行",
+    "DRY_RUN_FILLED": "模拟成交",
+    "EXECUTED": "实盘成交",
+    "FAILED": "失败",
+    "CANCELLED": "已取消",
+    "APPROVED": "通过",
+    "REJECTED": "拒绝",
+    "BUY": "买入",
+    "SELL": "卖出",
+}
+
+REASON_LABELS = {
+    "approved": "通过",
+    "strategy_disabled": "策略已关闭",
+    "not_trade_activity": "不是交易活动",
+    "source_not_buy": "来源不是买入",
+    "outcome_not_allowed": "结果不在允许范围",
+    "source_size_too_small": "来源金额太小",
+    "signal_too_old": "信号太旧",
+    "keyword_missing": "缺少关键词",
+    "keyword_blocked": "命中屏蔽关键词",
+    "orderbook_missing": "缺少订单簿",
+    "best_ask_missing": "缺少卖一价",
+    "best_ask_below_min_entry": "卖一价低于最低入场价",
+    "best_ask_above_max_price": "卖一价高于最高价",
+    "ask_depth_too_thin": "卖盘深度不足",
+    "source_to_ask_gap_too_wide": "跟单价差过大",
+    "open_intent_limit": "待执行订单过多",
+    "daily_usdc_limit": "触发每日金额上限",
+}
+
+
+def _display_value(key: str, value: object) -> str:
+    if key == "status" or key == "side":
+        return VALUE_LABELS.get(str(value), str(value))
+    if key == "reason":
+        return REASON_LABELS.get(str(value), str(value))
+    if key == "neg_risk":
+        return "是" if str(value) in {"1", "True", "true"} else "否"
+    return str(value)
+
+
+def _table(columns: list[Column], rows: Iterable[dict[str, object]]) -> str:
+    head = "".join(f"<th>{html.escape(label)}</th>" for _, label in columns)
     body_rows = []
     for row in rows:
-        cells = "".join(f"<td>{html.escape(str(row.get(name, '')))}</td>" for name in headers)
+        cells = "".join(
+            f"<td>{html.escape(_display_value(key, row.get(key, '')))}</td>"
+            for key, _ in columns
+        )
         body_rows.append(f"<tr>{cells}</tr>")
-    body = "\n".join(body_rows) or f"<tr><td colspan=\"{len(headers)}\">No rows</td></tr>"
+    body = "\n".join(body_rows) or f"<tr><td colspan=\"{len(columns)}\">暂无数据</td></tr>"
     return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
 
 
@@ -28,16 +89,16 @@ def render_html(store: Store) -> str:
     activity = [dict(row) for row in store.recent_rows("activity", 20)]
 
     summary_cards = "\n".join(
-        f"<div class=\"metric\"><span>{html.escape(key)}</span><strong>{html.escape(str(value))}</strong></div>"
+        f"<div class=\"metric\"><span>{html.escape(SUMMARY_LABELS.get(key, key))}</span><strong>{html.escape(str(value))}</strong></div>"
         for key, value in summary.items()
     )
 
     return f"""<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RGPoly v2 Dashboard</title>
+  <title>RGPoly 控制台</title>
   <style>
     body {{ margin: 0; font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; color: #17202a; background: #f6f7f9; }}
     header {{ padding: 20px 24px; background: #102033; color: white; }}
@@ -57,21 +118,21 @@ def render_html(store: Store) -> str:
 </head>
 <body>
   <header>
-    <h1>RGPoly v2 Dashboard</h1>
-    <div class="muted">Generated {html.escape(iso_utc())}</div>
+    <h1>RGPoly 控制台</h1>
+    <div class="muted">生成时间：{html.escape(iso_utc())} · 数据库：{html.escape(str(store.path))}</div>
   </header>
   <main>
     <section class="metrics">{summary_cards}</section>
-    <h2>Strategy Counts</h2>
-    {_table(["strategy", "signals", "approved", "rejected"], strategy_rows)}
-    <h2>Ready / Recent Intents</h2>
-    {_table(["id", "strategy", "status", "amount_usdc", "max_price", "tick_size", "neg_risk", "outcome", "title", "created_at"], intents)}
-    <h2>Recent Signals</h2>
-    {_table(["id", "strategy", "status", "reason", "wallet_alias", "outcome", "source_price", "best_ask", "title", "created_at"], signals)}
-    <h2>Recent Receipts</h2>
-    {_table(["id", "intent_id", "status", "order_id", "spent_usdc", "error", "created_at"], receipts)}
-    <h2>Recent Activity</h2>
-    {_table(["key", "wallet_alias", "side", "outcome", "price", "usdc_size", "slug", "seen_at"], activity)}
+    <h2>策略统计</h2>
+    {_table([("strategy", "策略"), ("signals", "信号数"), ("approved", "通过"), ("rejected", "拒绝")], strategy_rows)}
+    <h2>待执行 / 最近订单</h2>
+    {_table([("id", "订单ID"), ("strategy", "策略"), ("status", "状态"), ("amount_usdc", "金额USDC"), ("max_price", "最高价"), ("tick_size", "Tick"), ("neg_risk", "负风险"), ("outcome", "结果"), ("title", "市场标题"), ("created_at", "创建时间")], intents)}
+    <h2>最近信号</h2>
+    {_table([("id", "信号ID"), ("strategy", "策略"), ("status", "状态"), ("reason", "原因"), ("wallet_alias", "钱包别名"), ("outcome", "结果"), ("source_price", "来源价格"), ("best_ask", "卖一价"), ("title", "市场标题"), ("created_at", "创建时间")], signals)}
+    <h2>最近执行回执</h2>
+    {_table([("id", "回执ID"), ("intent_id", "订单ID"), ("status", "状态"), ("order_id", "CLOB订单ID"), ("spent_usdc", "花费USDC"), ("error", "错误"), ("created_at", "创建时间")], receipts)}
+    <h2>最近钱包活动</h2>
+    {_table([("key", "活动ID"), ("wallet_alias", "钱包别名"), ("side", "方向"), ("outcome", "结果"), ("price", "价格"), ("usdc_size", "金额USDC"), ("slug", "市场Slug"), ("seen_at", "发现时间")], activity)}
   </main>
 </body>
 </html>
