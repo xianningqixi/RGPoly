@@ -294,3 +294,48 @@ class Store:
         ).fetchone()
         return float(row["total"] or 0.0)
 
+    def scalar_count(self, table: str, where: str = "", params: tuple[Any, ...] = ()) -> int:
+        query = f"SELECT COUNT(*) AS n FROM {table}"
+        if where:
+            query += f" WHERE {where}"
+        row = self.conn.execute(query, params).fetchone()
+        return int(row["n"] or 0)
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "activity": self.scalar_count("activity"),
+            "signals": self.scalar_count("signals"),
+            "signals_approved": self.scalar_count("signals", "status = ?", ("APPROVED",)),
+            "signals_rejected": self.scalar_count("signals", "status = ?", ("REJECTED",)),
+            "intents_ready": self.scalar_count("intents", "status = ?", (str(IntentStatus.READY),)),
+            "intents_dry_run": self.scalar_count("intents", "status = ?", (str(IntentStatus.DRY_RUN_FILLED),)),
+            "intents_executed": self.scalar_count("intents", "status = ?", (str(IntentStatus.EXECUTED),)),
+            "intents_failed": self.scalar_count("intents", "status = ?", (str(IntentStatus.FAILED),)),
+            "receipts": self.scalar_count("receipts"),
+        }
+
+    def recent_rows(self, table: str, limit: int = 20) -> list[sqlite3.Row]:
+        if table not in {"activity", "signals", "intents", "receipts"}:
+            raise ValueError(f"unsupported table: {table}")
+        order_column = "seen_at" if table == "activity" else "created_at"
+        return list(
+            self.conn.execute(
+                f"SELECT * FROM {table} ORDER BY {order_column} DESC LIMIT ?",
+                (limit,),
+            )
+        )
+
+    def strategy_counts(self) -> list[sqlite3.Row]:
+        return list(
+            self.conn.execute(
+                """
+                SELECT strategy,
+                       COUNT(*) AS signals,
+                       SUM(CASE WHEN status = 'APPROVED' THEN 1 ELSE 0 END) AS approved,
+                       SUM(CASE WHEN status = 'REJECTED' THEN 1 ELSE 0 END) AS rejected
+                FROM signals
+                GROUP BY strategy
+                ORDER BY strategy
+                """
+            )
+        )

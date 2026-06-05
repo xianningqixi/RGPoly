@@ -32,6 +32,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     intents = sub.add_parser("intents")
     intents.add_argument("--limit", type=int, default=20)
+
+    sub.add_parser("status")
+
+    dashboard = sub.add_parser("dashboard")
+    dashboard.add_argument("--output", type=Path, default=Path(".runtime/rgpoly_dashboard.html"))
+
+    export = sub.add_parser("export-csv")
+    export.add_argument("--table", choices=["activity", "signals", "intents", "receipts"], required=True)
+    export.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -106,6 +115,52 @@ def _intents(config_path: Path, limit: int) -> int:
         store.close()
 
 
+def _status(config_path: Path) -> int:
+    config = load_config(config_path)
+    store = Store(config.engine.db_path)
+    try:
+        summary = store.summary()
+        for key, value in summary.items():
+            print(f"{key}: {value}")
+        rows = store.strategy_counts()
+        if rows:
+            print("")
+            for row in rows:
+                print(
+                    f"{row['strategy']}: signals={row['signals']} "
+                    f"approved={row['approved'] or 0} rejected={row['rejected'] or 0}"
+                )
+        return 0
+    finally:
+        store.close()
+
+
+def _dashboard(config_path: Path, output: Path) -> int:
+    from .dashboard import write_dashboard
+
+    config = load_config(config_path)
+    store = Store(config.engine.db_path)
+    try:
+        write_dashboard(store, output)
+        print(f"wrote {output}")
+        return 0
+    finally:
+        store.close()
+
+
+def _export_csv(config_path: Path, table: str, output: Path) -> int:
+    from .dashboard import export_table
+
+    config = load_config(config_path)
+    store = Store(config.engine.db_path)
+    try:
+        export_table(store, table, output)
+        print(f"wrote {output}")
+        return 0
+    finally:
+        store.close()
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "init-config":
@@ -131,5 +186,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "intents":
         return _intents(args.config, args.limit)
+
+    if args.command == "status":
+        return _status(args.config)
+
+    if args.command == "dashboard":
+        return _dashboard(args.config, args.output)
+
+    if args.command == "export-csv":
+        return _export_csv(args.config, args.table, args.output)
 
     raise AssertionError(args.command)

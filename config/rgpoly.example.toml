@@ -16,12 +16,74 @@ tick_size = "0.01"
 name = "btc_directional_copy"
 enabled = true
 stake_usdc = 10.0
-max_price = 0.80
+min_entry_price = 0.05
+max_price = 0.90
+max_source_to_ask_gap = 0.06
+min_ask_depth_usdc = 10.0
 min_source_usdc = 3.0
-max_signal_age_sec = 120
+max_signal_age_sec = 180
 required_title_keywords = ["bitcoin", "btc"]
 blocked_title_keywords = []
 allowed_outcomes = ["Yes", "No"]
 
 [wallet_copy.wallets]
 creamcream_btc_directional = "0x6e1d5040d0ac73709b0621f620d2a60b80d2d0fa"
+
+[[wallet_copy]]
+name = "smart_crypto_copy"
+enabled = true
+stake_usdc = 10.0
+min_entry_price = 0.10
+max_price = 0.65
+max_source_to_ask_gap = 0.01
+min_ask_depth_usdc = 30.0
+min_source_usdc = 3.0
+max_signal_age_sec = 8
+required_title_keywords = ["bitcoin", "btc", "ethereum", "eth", "solana", "sol", "xrp"]
+blocked_title_keywords = []
+allowed_outcomes = ["Up", "Down", "Yes", "No"]
+
+[wallet_copy.wallets]
+"0x8dxd" = "0x63ce342161250d705dc0b16df89036c8e5f9ba9a"
+"0xe1d6" = "0xe1d6b51521bd4365769199f392f9818661bd907c"
+xuanxuan008 = "0xcfb103c37c0234f524c632d964ed31f117b5f694"
+ohanism = "0x89b5cdaaa4866c1e738406712012a630b4078beb"
+creamcream_crypto = "0xce25e214d5cfe4f459cf67f08df581885aae7fdc"
+creamcream_btc_5m = "0x04b6d7e930cf9e493c5e6ef24b496294f95594c8"
+
+[[wallet_copy]]
+name = "weather_wallet_copy"
+enabled = true
+stake_usdc = 10.0
+min_entry_price = 0.05
+max_price = 0.95
+max_source_to_ask_gap = 0.025
+min_ask_depth_usdc = 20.0
+min_source_usdc = 1.0
+max_signal_age_sec = 120
+required_title_keywords = ["temperature", "weather", "rain", "snow", "hurricane", "storm"]
+blocked_title_keywords = []
+allowed_outcomes = ["Yes", "No"]
+
+[wallet_copy.wallets]
+ColdMath = "0x594edb9112f526fa6a80b8f858a6379c8a2c1c11"
+NoonienSoong = "0x38cc1d1f95d12039324809d8bb6ca6da6cbef88e"
+BeefSlayer = "0x331bf91c132af9d921e1908ca0979363fc47193f"
+
+[[wallet_copy]]
+name = "weather_high_prob_copy"
+enabled = false
+stake_usdc = 10.0
+min_entry_price = 0.80
+max_price = 0.995
+max_source_to_ask_gap = 0.01
+min_ask_depth_usdc = 20.0
+min_source_usdc = 1.0
+max_signal_age_sec = 60
+required_title_keywords = ["temperature", "weather", "rain", "snow", "hurricane", "storm"]
+blocked_title_keywords = []
+allowed_outcomes = ["Yes", "No"]
+
+[wallet_copy.wallets]
+Poligarch = "0xb40e89677d59665d5188541ad860450a6e2a7cc9"
+Railbird = "0x906f2454a777600aea6c506247566decef82371a"

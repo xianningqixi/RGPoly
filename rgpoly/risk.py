@@ -44,8 +44,16 @@ class RiskManager:
             return False, "orderbook_missing"
         if book.best_ask <= 0:
             return False, "best_ask_missing"
+        if book.best_ask < config.min_entry_price:
+            return False, "best_ask_below_min_entry"
         if book.best_ask > config.max_price:
             return False, "best_ask_above_max_price"
+        if config.min_ask_depth_usdc and book.ask_depth_usdc < config.min_ask_depth_usdc:
+            return False, "ask_depth_too_thin"
+        if trade.price > 0 and config.max_source_to_ask_gap >= 0:
+            gap = book.best_ask - trade.price
+            if gap > config.max_source_to_ask_gap:
+                return False, "source_to_ask_gap_too_wide"
         if self.store.open_intent_count() >= self.execution.max_open_intents:
             return False, "open_intent_limit"
 
@@ -54,4 +62,3 @@ class RiskManager:
         if spent + config.stake_usdc > self.execution.max_daily_usdc:
             return False, "daily_usdc_limit"
         return True, "approved"
-

@@ -90,8 +90,10 @@ Key differences from the legacy script stack:
 - SQLite WAL state store instead of many append-only CSV files.
 - Async Polymarket API polling for watched-wallet activity and order books.
 - One normalized path: activity -> signal -> risk check -> order intent -> receipt.
-- Dry-run execution is implemented first; live CLOB execution remains explicitly
-  gated and should be wired only after dry-run parity is checked.
+- Config-driven multi-strategy wallet-copy migration for BTC directional,
+  crypto short-window, and selected weather wallets.
+- Dry-run execution is the default. Live CLOB execution is implemented but
+  requires an explicit acknowledgement gate.
 
 Create a local config and state database:
 
@@ -105,6 +107,7 @@ Poll watched wallets once:
 ```powershell
 python -m rgpoly --config .\config\rgpoly.toml poll-once
 python -m rgpoly --config .\config\rgpoly.toml intents
+python -m rgpoly --config .\config\rgpoly.toml status
 ```
 
 Run continuously:
@@ -113,10 +116,31 @@ Run continuously:
 python -m rgpoly --config .\config\rgpoly.toml run
 ```
 
+On Windows, start/stop/view the v2 engine with:
+
+```powershell
+.\ops\windows\start_rgpoly_v2.ps1 -Config config\rgpoly.toml
+.\ops\windows\view_rgpoly_v2_status.ps1 -Config config\rgpoly.toml
+.\ops\windows\stop_rgpoly_v2.ps1
+```
+
 Process ready intents as dry-run receipts:
 
 ```powershell
 python -m rgpoly --config .\config\rgpoly.toml execute
+```
+
+Generate a local SQLite-backed dashboard:
+
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml dashboard --output .\.runtime\rgpoly_dashboard.html
+```
+
+Live CLOB execution is gated separately from the legacy scripts:
+
+```powershell
+$env:RGPOLY_LIVE_ENABLED="I_UNDERSTAND_REAL_MONEY_RISK"
+python -m rgpoly --config .\config\rgpoly.toml execute --live --limit 1
 ```
 
 ## Safety Defaults

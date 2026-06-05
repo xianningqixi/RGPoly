@@ -32,6 +32,9 @@ class WalletCopyConfig:
     enabled: bool = True
     stake_usdc: float = 10.0
     max_price: float = 0.8
+    min_entry_price: float = 0.0
+    max_source_to_ask_gap: float = 0.05
+    min_ask_depth_usdc: float = 0.0
     min_source_usdc: float = 3.0
     max_signal_age_sec: float = 120.0
     required_title_keywords: tuple[str, ...] = ()
@@ -70,6 +73,9 @@ def load_config(path: Path) -> AppConfig:
                 wallets={str(alias): str(wallet).lower() for alias, wallet in wallets.items()},
                 stake_usdc=float(item.get("stake_usdc", 10.0)),
                 max_price=float(item.get("max_price", 0.8)),
+                min_entry_price=float(item.get("min_entry_price", 0.0)),
+                max_source_to_ask_gap=float(item.get("max_source_to_ask_gap", 0.05)),
+                min_ask_depth_usdc=float(item.get("min_ask_depth_usdc", 0.0)),
                 min_source_usdc=float(item.get("min_source_usdc", 3.0)),
                 max_signal_age_sec=float(item.get("max_signal_age_sec", 120.0)),
                 required_title_keywords=_as_tuple(item.get("required_title_keywords")),
