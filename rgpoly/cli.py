@@ -272,7 +272,7 @@ def _dashboard(config_path: Path, output: Path) -> int:
     config = load_config(config_path)
     store = Store(config.engine.db_path)
     try:
-        write_dashboard(store, output)
+        write_dashboard(store, output, config_path=config_path, execution_mode=config.execution.mode)
         print(f"wrote {output}")
         return 0
     finally:
@@ -281,8 +281,6 @@ def _dashboard(config_path: Path, output: Path) -> int:
 
 def _dashboard_server(config_path: Path, host: str, port: int) -> int:
     from .dashboard import render_html
-
-    config = load_config(config_path)
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802
@@ -297,9 +295,14 @@ def _dashboard_server(config_path: Path, host: str, port: int) -> int:
                 self.end_headers()
                 self.wfile.write(payload)
                 return
+            config = load_config(config_path)
             store = Store(config.engine.db_path)
             try:
-                payload = render_html(store).encode("utf-8")
+                payload = render_html(
+                    store,
+                    config_path=config_path,
+                    execution_mode=config.execution.mode,
+                ).encode("utf-8")
             finally:
                 store.close()
             self.send_response(200)
@@ -312,6 +315,7 @@ def _dashboard_server(config_path: Path, host: str, port: int) -> int:
             return
 
     server = ThreadingHTTPServer((host, port), Handler)
+    config = load_config(config_path)
     print(f"dashboard: http://{host}:{port}/")
     print(f"config: {config_path}")
     print(f"db: {config.engine.db_path}")
