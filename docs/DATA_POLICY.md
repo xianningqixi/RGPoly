@@ -1,21 +1,16 @@
 # Data Policy
 
-The original migration package contained a large local runtime snapshot. This
-development repository intentionally excludes it.
+RGPoly keeps runtime state local by default.
 
-Excluded by default:
+Excluded from git:
 
-- `*_copy_sim.csv`
-- `*_trade_audit.csv`
-- `*_rejects.csv`
-- `*_seen.json`
-- `execution_outbox.jsonl`
-- `execution_outbox.csv`
-- `external_execution_receipts.csv`
-- `wallet_copy_exec_log.*`
+- `.runtime/`
+- `.env`
+- SQLite databases and WAL files
+- logs
 - generated dashboards
-- console and error logs
+- exported CSV files
+- live order receipts or account snapshots
 
-Use small sanitized fixtures under `examples/` for tests or demos. Do not use
-private wallet balances, private receipts, API keys, or personal account state as
-fixtures.
+Tests should use synthetic rows only. Do not add private wallet balances,
+private receipts, API credentials, or personal account state as fixtures.

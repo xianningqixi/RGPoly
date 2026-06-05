@@ -3,14 +3,17 @@ db_path = ".runtime/rgpoly.sqlite"
 poll_interval_ms = 750
 activity_limit = 20
 http_timeout_sec = 4.0
-dry_run = true
 
 [execution]
+mode = "dry_run" # manual | dry_run | live
+execute_limit_per_loop = 10
 live_enabled_env = "RGPOLY_LIVE_ENABLED"
 ack_value = "I_UNDERSTAND_REAL_MONEY_RISK"
 max_daily_usdc = 50.0
 max_open_intents = 25
 tick_size = "0.01"
+default_neg_risk = false
+order_type = "FOK"
 
 [[wallet_copy]]
 name = "btc_directional_copy"

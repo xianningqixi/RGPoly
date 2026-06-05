@@ -30,20 +30,42 @@ def parse_json_list(value: Any) -> list[Any]:
     return []
 
 
+def parse_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y"}:
+        return True
+    if text in {"0", "false", "no", "n"}:
+        return False
+    return default
+
+
 def token_for_outcome(market: dict[str, Any], outcome: str) -> MarketToken | None:
     outcomes = parse_json_list(market.get("outcomes"))
     token_ids = parse_json_list(market.get("clobTokenIds") or market.get("clob_token_ids"))
+    tick_size = str(market.get("minimum_tick_size") or market.get("minimumTickSize") or "0.01")
+    neg_risk = parse_bool(market.get("neg_risk") if "neg_risk" in market else market.get("negRisk"))
     target = outcome.lower().strip()
     for idx, name in enumerate(outcomes):
         if str(name).lower().strip() == target and idx < len(token_ids):
-            return MarketToken(token_id=str(token_ids[idx]), outcome=str(name))
+            return MarketToken(token_id=str(token_ids[idx]), outcome=str(name), tick_size=tick_size, neg_risk=neg_risk)
     tokens = market.get("tokens")
     if isinstance(tokens, list):
         for token in tokens:
             if str(token.get("outcome") or "").lower().strip() == target:
                 token_id = str(token.get("token_id") or token.get("tokenId") or "")
                 if token_id:
-                    return MarketToken(token_id=token_id, outcome=str(token.get("outcome") or outcome))
+                    return MarketToken(
+                        token_id=token_id,
+                        outcome=str(token.get("outcome") or outcome),
+                        tick_size=tick_size,
+                        neg_risk=neg_risk,
+                    )
     return None
 
 
@@ -52,9 +74,10 @@ class PolymarketClient:
         timeout = httpx.Timeout(timeout_sec)
         self.client = httpx.AsyncClient(
             timeout=timeout,
-            headers={"User-Agent": "rgpoly/0.2", "Accept": "application/json"},
+            headers={"User-Agent": "rgpoly/0.3", "Accept": "application/json"},
             http2=True,
         )
+        self._market_cache: dict[str, dict[str, Any] | None] = {}
 
     async def close(self) -> None:
         await self.client.aclose()
@@ -73,10 +96,13 @@ class PolymarketClient:
     async def market_by_slug(self, slug: str) -> dict[str, Any] | None:
         if not slug:
             return None
+        if slug in self._market_cache:
+            return self._market_cache[slug]
         response = await self.client.get(f"{GAMMA_API}/markets", params={"slug": slug})
         response.raise_for_status()
         payload = response.json()
         if isinstance(payload, list) and payload:
+            self._market_cache[slug] = payload[0]
             return payload[0]
 
         response = await self.client.get(f"{GAMMA_API}/events", params={"slug": slug})
@@ -86,16 +112,20 @@ class PolymarketClient:
             markets = payload[0].get("markets") or []
             for market in markets:
                 if isinstance(market, dict) and market.get("slug") == slug:
+                    self._market_cache[slug] = market
                     return market
+        self._market_cache[slug] = None
         return None
 
     async def token_for_trade(self, trade: ActivityTrade) -> MarketToken | None:
+        market = await self.market_by_slug(trade.slug)
+        if market:
+            token = token_for_outcome(market, trade.outcome)
+            if token:
+                return token
         if trade.asset:
             return MarketToken(token_id=trade.asset, outcome=trade.outcome)
-        market = await self.market_by_slug(trade.slug)
-        if not market:
-            return None
-        return token_for_outcome(market, trade.outcome)
+        return None
 
     async def order_book(self, token_id: str) -> OrderBook | None:
         if not token_id:
@@ -117,4 +147,3 @@ class PolymarketClient:
             bid_depth_usdc=bid_depth,
             raw=book if isinstance(book, dict) else {},
         )
-

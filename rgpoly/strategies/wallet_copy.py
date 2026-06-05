@@ -102,6 +102,8 @@ class WalletCopyStrategy:
                 max_price=self.config.max_price,
                 title=trade.title,
                 slug=trade.slug,
+                tick_size=token.tick_size if token else "0.01",
+                neg_risk=token.neg_risk if token else False,
             )
             if self.store.create_intent(intent):
                 intents += 1

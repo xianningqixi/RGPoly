@@ -1,6 +1,6 @@
 [project]
 name = "rgpoly"
-version = "0.2.0"
+version = "0.3.0"
 description = "Fast local Polymarket wallet-copy trading engine"
 requires-python = ">=3.11"
 dependencies = [

@@ -16,7 +16,7 @@ from .models import (
 )
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class Store:
@@ -103,6 +103,8 @@ class Store:
                     max_price REAL NOT NULL,
                     title TEXT,
                     slug TEXT,
+                    tick_size TEXT NOT NULL DEFAULT '0.01',
+                    neg_risk INTEGER NOT NULL DEFAULT 0,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
@@ -126,7 +128,14 @@ class Store:
                     ON receipts(created_at);
                 """
             )
+            self._ensure_column(conn, "intents", "tick_size", "TEXT NOT NULL DEFAULT '0.01'")
+            self._ensure_column(conn, "intents", "neg_risk", "INTEGER NOT NULL DEFAULT 0")
             conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+
+    def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
     def put_kv(self, key: str, value: Any) -> None:
         self.conn.execute(
@@ -204,9 +213,9 @@ class Store:
                 """
                 INSERT OR IGNORE INTO intents(
                     id, signal_id, strategy, token_id, side, outcome, amount_usdc,
-                    max_price, title, slug, status, created_at, updated_at
+                    max_price, title, slug, tick_size, neg_risk, status, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     intent.id,
@@ -219,6 +228,8 @@ class Store:
                     intent.max_price,
                     intent.title,
                     intent.slug,
+                    intent.tick_size,
+                    int(intent.neg_risk),
                     str(intent.status),
                     intent.created_at,
                     intent.created_at,

@@ -1,108 +1,60 @@
-# Polymarket Copytrading Full Stack
+# RGPoly
 
-Development snapshot for a local Polymarket wallet-copy monitoring system.
+Fast local Polymarket wallet-copy trading engine for self-use.
 
-This repository is intentionally source-first. Historical logs, generated CSVs,
-execution receipts, seen-state files, dashboards, and credential material are
-excluded from git.
-
-## What This Project Does
-
-- Discovers and scores public Polymarket wallets.
-- Watches public wallet activity through Polymarket data APIs.
-- Simulates wallet-copy strategies for BTC, ETH, SOL, BNB, weather, and smart
-  wallet cohorts.
-- Runs final-only PnL, wallet-quality, risk, and strategy-health reports.
-- Builds live-order preflight rows and manual/external execution tickets.
-- Contains optional live CLOB executors, guarded by explicit acknowledgement
-  environment variables.
-
-## Repository Layout
+This repository is now v2 only. The legacy script stack, CSV simulators,
+frontend folder, old Skill material, and historical helper scripts were removed
+so the project has one runtime path:
 
 ```text
-backend/
-  common/                 Shared audit, risk, settlement, and path helpers
-  execution/              Preflight, outbox, API-key, and live execution code
-  monitors/               Background health/activity monitors
-  reports/                Read-only reporting, backtests, and status views
-  research/               Wallet/account discovery and research tools
-  strategies/
-    ai/                   AI signal simulation
-    arbitrage/            Basket and bond-style arbitrage scans
-    btc/                  BTC directional/candidate strategies
-    crypto/               ETH, SOL, BNB, and lead-lag strategies
-    smart_wallets/        Smart-wallet cohort and retest simulations
-    weather/              Weather-market strategy simulations
-  tools/                  One-off debug and operator utilities
-
-frontend/
-  dashboard/              Static dashboard generation
-
-ops/
-  windows/legacy/         Original PowerShell start/stop/view helpers
-
-docs/                     Security, data policy, architecture, and Skill docs
-examples/                 Sanitized schemas and fixtures
-scripts/                  Project-aware launch helpers
+watched wallet activity -> signal -> risk check -> order intent -> receipt
 ```
 
-## Quick Start For Development
+## Why Live Did Not Place Orders Before
+
+The previous v2 rewrite had a live CLOB executor, but `rgpoly run` only polled
+wallets and created ready intents. You had to run `rgpoly execute --live`
+separately, so a long-running process looked alive while never sending orders.
+
+`rgpoly run` now supports execution modes:
+
+- `manual`: poll only; ready intents wait for manual execution.
+- `dry_run`: poll and immediately mark ready intents as dry-run receipts.
+- `live`: poll and immediately submit ready intents to Polymarket CLOB.
+
+Default mode is still `dry_run`. Real-money mode requires both `--live` or
+`execution.mode = "live"` and the explicit acknowledgement environment gate.
+
+## Layout
+
+```text
+rgpoly/                   Trading engine package
+  strategies/             Wallet-copy strategy implementation
+config/                   Example TOML config
+docs/                     Current v2 architecture, security, and data policy
+ops/windows/              Start, stop, and status helpers
+tests/                    Unit tests for config, store, risk, execution, dashboard
+```
+
+## Install
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r .\requirements.txt
-python -m compileall -q .
 ```
 
-Use the project runner for scripts in the reorganized tree. It sets the working
-directory to the repository root, exposes all backend/frontend script folders on
-`PYTHONPATH`, and sets `POLY_PROJECT_ROOT`.
-
-```powershell
-.\scripts\run_python.ps1 backend\reports\runtime_strategy_status.py
-.\scripts\run_python.ps1 backend\execution\execution_layer_status.py
-.\scripts\run_python.ps1 frontend\dashboard\generate_dashboard.py
-```
-
-If local PowerShell policy blocks `.ps1` scripts:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run_python.ps1 backend\reports\runtime_strategy_status.py
-```
-
-Cross-platform equivalent:
-
-```bash
-python scripts/run_python.py backend/reports/runtime_strategy_status.py
-```
-
-The original Windows process helpers are kept under `ops/windows/legacy/`.
-Treat them as migration references until they are modernized to the new runner.
-
-## RGPoly v2 Rewrite
-
-The `rgpoly/` package is the new fast self-use engine. It is designed to run
-beside the legacy scripts while the trading path is migrated.
-
-Key differences from the legacy script stack:
-
-- SQLite WAL state store instead of many append-only CSV files.
-- Async Polymarket API polling for watched-wallet activity and order books.
-- One normalized path: activity -> signal -> risk check -> order intent -> receipt.
-- Config-driven multi-strategy wallet-copy migration for BTC directional,
-  crypto short-window, and selected weather wallets.
-- Dry-run execution is the default. Live CLOB execution is implemented but
-  requires an explicit acknowledgement gate.
-
-Create a local config and state database:
+Create local config and database:
 
 ```powershell
 python -m rgpoly init-config --path .\config\rgpoly.toml
 python -m rgpoly --config .\config\rgpoly.toml migrate
+python -m rgpoly --config .\config\rgpoly.toml doctor
 ```
 
-Poll watched wallets once:
+## Dry-Run Operation
+
+Poll once:
 
 ```powershell
 python -m rgpoly --config .\config\rgpoly.toml poll-once
@@ -110,61 +62,95 @@ python -m rgpoly --config .\config\rgpoly.toml intents
 python -m rgpoly --config .\config\rgpoly.toml status
 ```
 
-Run continuously:
+Run continuously in dry-run mode:
 
 ```powershell
-python -m rgpoly --config .\config\rgpoly.toml run
+python -m rgpoly --config .\config\rgpoly.toml run --dry-run
 ```
 
-On Windows, start/stop/view the v2 engine with:
-
-```powershell
-.\ops\windows\start_rgpoly_v2.ps1 -Config config\rgpoly.toml
-.\ops\windows\view_rgpoly_v2_status.ps1 -Config config\rgpoly.toml
-.\ops\windows\stop_rgpoly_v2.ps1
-```
-
-Process ready intents as dry-run receipts:
-
-```powershell
-python -m rgpoly --config .\config\rgpoly.toml execute
-```
-
-Generate a local SQLite-backed dashboard:
+Generate the local dashboard:
 
 ```powershell
 python -m rgpoly --config .\config\rgpoly.toml dashboard --output .\.runtime\rgpoly_dashboard.html
 ```
 
-Live CLOB execution is gated separately from the legacy scripts:
+## Live Operation
+
+Set credentials in your shell. Do not commit real values.
+
+```powershell
+$env:PRIVATE_KEY="..."
+$env:POLY_API_KEY="..."
+$env:POLY_API_SECRET="..."
+$env:POLY_API_PASSPHRASE="..."
+$env:POLY_SIGNATURE_TYPE="3"
+$env:POLY_PROXY_ADDRESS="0x..."
+```
+
+If you only have a private key, derive Polymarket L2 API credentials:
+
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml derive-api-key
+```
+
+Enable the live acknowledgement gate and preflight:
 
 ```powershell
 $env:RGPOLY_LIVE_ENABLED="I_UNDERSTAND_REAL_MONEY_RISK"
-python -m rgpoly --config .\config\rgpoly.toml execute --live --limit 1
+python -m rgpoly --config .\config\rgpoly.toml doctor --live --check-client
 ```
 
-## Safety Defaults
+Start live execution with a small per-loop cap:
 
-Simulation and reporting scripts do not require private keys.
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml run --live --execute-limit 1
+```
 
-Live execution scripts must remain disabled unless an operator deliberately sets
-credentials and the relevant acknowledgement variable. Do not commit real values
-to `.env`, CSV, JSON, Markdown, logs, or Skill snapshots.
+Equivalent Windows background helper:
 
-Important live gates:
+```powershell
+.\ops\windows\start_rgpoly_v2.ps1 -Config config\rgpoly.toml -Mode live -ExecuteLimit 1
+.\ops\windows\view_rgpoly_v2_status.ps1 -Config config\rgpoly.toml -Mode live
+.\ops\windows\stop_rgpoly_v2.ps1
+```
 
-- `POLY_EXECUTION_ENABLED=I_UNDERSTAND_REAL_MONEY_RISK`
-- `POLY_WALLET_COPY_ENABLED=I_UNDERSTAND_REAL_MONEY_RISK`
-- `POLY_CLOB_EXECUTION_ENABLED=I_UNDERSTAND_REAL_MONEY_RISK`
-- `POLY_BTC_COPY_WORKER_ENABLED=I_UNDERSTAND_REAL_MONEY_RISK`
-- `POLY_BTC_COPY_MONITOR_ENABLED=I_UNDERSTAND_REAL_MONEY_RISK`
+## Config
 
-## Runtime Data Policy
+Key execution settings live under `[execution]`:
 
-Runtime data is local-only by default. The `.gitignore` excludes generated CSV,
-JSON, JSONL, log, dashboard, receipt, outbox, and seen-state files. Add sanitized
-fixtures under `examples/` if tests need stable input data.
+```toml
+mode = "dry_run"             # manual | dry_run | live
+execute_limit_per_loop = 10
+max_daily_usdc = 50.0
+max_open_intents = 25
+tick_size = "0.01"
+default_neg_risk = false
+order_type = "FOK"           # FOK | FAK
+```
 
-Before using live mode, review `docs/SECURITY.md`, confirm jurisdiction and
-platform restrictions, use a small funded wallet, and run dry-run/preflight
-reports first.
+Wallet-copy strategies are configured with watched wallets, stake size, max
+price, freshness window, keyword filters, allowed outcomes, ask-depth checks,
+and source-to-ask gap controls.
+
+## Operator Commands
+
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml doctor
+python -m rgpoly --config .\config\rgpoly.toml run --manual
+python -m rgpoly --config .\config\rgpoly.toml run --dry-run
+python -m rgpoly --config .\config\rgpoly.toml run --live --execute-limit 1
+python -m rgpoly --config .\config\rgpoly.toml execute
+python -m rgpoly --config .\config\rgpoly.toml execute --live --limit 1
+python -m rgpoly --config .\config\rgpoly.toml export-csv --table receipts --output .\.runtime\receipts.csv
+```
+
+## Safety
+
+Use a dedicated low-balance wallet. Start with `--execute-limit 1` and small
+`stake_usdc`. Confirm platform eligibility, jurisdiction, and market rules
+before live trading. The engine is software, not financial advice.
+
+Useful references:
+
+- Polymarket CLOB order docs: https://docs.polymarket.com/developers/CLOB/orders/create-order
+- Polymarket L2 client docs: https://docs.polymarket.com/developers/CLOB/clients/methods-l2

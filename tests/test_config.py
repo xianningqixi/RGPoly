@@ -14,8 +14,9 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("smart_crypto_copy", names)
         self.assertIn("weather_wallet_copy", names)
         self.assertGreaterEqual(len(config.wallet_copy), 4)
+        self.assertEqual(config.execution.mode, "dry_run")
+        self.assertEqual(config.execution.order_type, "FOK")
 
 
 if __name__ == "__main__":
     unittest.main()
-

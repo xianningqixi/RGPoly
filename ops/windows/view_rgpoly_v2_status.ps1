@@ -1,5 +1,7 @@
 param(
-    [string]$Config = "config\rgpoly.toml"
+    [string]$Config = "config\rgpoly.toml",
+    [ValidateSet("", "manual", "dry_run", "live")]
+    [string]$Mode = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,3 +21,9 @@ if ($processes) {
 Write-Host ""
 python -m rgpoly --config $Config status
 
+Write-Host ""
+$doctorArgs = @("-m", "rgpoly", "--config", $Config, "doctor")
+if ($Mode) {
+    $doctorArgs += @("--mode", $Mode)
+}
+python @doctorArgs

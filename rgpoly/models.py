@@ -122,6 +122,8 @@ class ActivityTrade:
 class MarketToken:
     token_id: str
     outcome: str
+    tick_size: str = "0.01"
+    neg_risk: bool = False
 
 
 @dataclass(frozen=True)
@@ -172,6 +174,8 @@ class OrderIntent:
     max_price: float
     title: str
     slug: str
+    tick_size: str = "0.01"
+    neg_risk: bool = False
     status: IntentStatus = IntentStatus.READY
     created_at: str = field(default_factory=iso_utc)
 
@@ -189,4 +193,3 @@ class ExecutionReceipt:
     error: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=iso_utc)
-

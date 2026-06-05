@@ -75,10 +75,15 @@ class StoreTests(unittest.TestCase):
                 max_price=0.8,
                 title=trade.title,
                 slug=trade.slug,
+                tick_size="0.001",
+                neg_risk=True,
             )
             self.assertTrue(store.create_intent(intent))
             self.assertFalse(store.create_intent(intent))
             self.assertEqual(store.open_intent_count(), 1)
+            row = store.ready_intents(1)[0]
+            self.assertEqual(row["tick_size"], "0.001")
+            self.assertEqual(row["neg_risk"], 1)
         finally:
             store.close()
 

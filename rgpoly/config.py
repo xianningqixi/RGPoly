@@ -7,22 +7,29 @@ from pathlib import Path
 from typing import Any
 
 
+EXECUTION_MODES = ("manual", "dry_run", "live")
+ORDER_TYPES = ("FOK", "FAK")
+
+
 @dataclass(frozen=True)
 class EngineConfig:
     db_path: Path = Path(".runtime/rgpoly.sqlite")
     poll_interval_ms: int = 750
     activity_limit: int = 20
     http_timeout_sec: float = 4.0
-    dry_run: bool = True
 
 
 @dataclass(frozen=True)
 class ExecutionConfig:
+    mode: str = "dry_run"
+    execute_limit_per_loop: int = 10
     live_enabled_env: str = "RGPOLY_LIVE_ENABLED"
     ack_value: str = "I_UNDERSTAND_REAL_MONEY_RISK"
     max_daily_usdc: float = 50.0
     max_open_intents: int = 25
     tick_size: str = "0.01"
+    default_neg_risk: bool = False
+    order_type: str = "FOK"
 
 
 @dataclass(frozen=True)
@@ -59,6 +66,20 @@ def _as_tuple(value: Any) -> tuple[str, ...]:
     return tuple(str(item) for item in value)
 
 
+def normalize_execution_mode(value: str | None) -> str:
+    mode = (value or "dry_run").strip().lower().replace("-", "_")
+    if mode not in EXECUTION_MODES:
+        raise ValueError(f"execution.mode must be one of {', '.join(EXECUTION_MODES)}")
+    return mode
+
+
+def normalize_order_type(value: str | None) -> str:
+    order_type = (value or "FOK").strip().upper()
+    if order_type not in ORDER_TYPES:
+        raise ValueError(f"execution.order_type must be one of {', '.join(ORDER_TYPES)}")
+    return order_type
+
+
 def load_config(path: Path) -> AppConfig:
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     engine_data = data.get("engine") or {}
@@ -89,14 +110,17 @@ def load_config(path: Path) -> AppConfig:
             poll_interval_ms=int(engine_data.get("poll_interval_ms", 750)),
             activity_limit=int(engine_data.get("activity_limit", 20)),
             http_timeout_sec=float(engine_data.get("http_timeout_sec", 4.0)),
-            dry_run=bool(engine_data.get("dry_run", True)),
         ),
         execution=ExecutionConfig(
+            mode=normalize_execution_mode(execution_data.get("mode")),
+            execute_limit_per_loop=int(execution_data.get("execute_limit_per_loop", 10)),
             live_enabled_env=str(execution_data.get("live_enabled_env", "RGPOLY_LIVE_ENABLED")),
             ack_value=str(execution_data.get("ack_value", "I_UNDERSTAND_REAL_MONEY_RISK")),
             max_daily_usdc=float(execution_data.get("max_daily_usdc", 50.0)),
             max_open_intents=int(execution_data.get("max_open_intents", 25)),
             tick_size=str(execution_data.get("tick_size", "0.01")),
+            default_neg_risk=bool(execution_data.get("default_neg_risk", False)),
+            order_type=normalize_order_type(execution_data.get("order_type")),
         ),
         wallet_copy=tuple(strategies),
     )

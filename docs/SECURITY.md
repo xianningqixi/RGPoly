@@ -1,42 +1,37 @@
 # Security Notes
 
-This repository is prepared as a development snapshot. Treat all trading code as
-high risk.
+RGPoly can submit real-money Polymarket CLOB orders in live mode. Treat the
+entire runtime as high risk.
 
-## Included Safety Changes
+## Live Gate
 
-- `openclaw_outbox_executor.py` no longer falls back to a private key file in the
-  user's home directory.
-- `openclaw_outbox_executor.py` requires
-  `POLY_CLOB_EXECUTION_ENABLED=I_UNDERSTAND_REAL_MONEY_RISK` for `--execute`.
-- `polymarket_btc_copy_worker.py` and
-  `polymarket_btc_copy_worker_daemon.py` require
-  `POLY_BTC_COPY_WORKER_ENABLED=I_UNDERSTAND_REAL_MONEY_RISK` before live
-  execution.
-- `polymarket_btc_copy_monitor.py` requires
-  `POLY_BTC_COPY_MONITOR_ENABLED=I_UNDERSTAND_REAL_MONEY_RISK` before live
-  execution.
-- `wallet_copy_executor.py` has a continuous-loop logging bug fixed so processed
-  IDs are saved after a live result instead of failing on an undefined variable.
-- `install_polymarket_worker_task.ps1` now parses as PowerShell and documents the
-  live worker acknowledgement gate.
+Live execution requires all of the following:
+
+- `run --live` or `execution.mode = "live"`.
+- `RGPOLY_LIVE_ENABLED=I_UNDERSTAND_REAL_MONEY_RISK`.
+- `PRIVATE_KEY`.
+- `POLY_API_KEY`, `POLY_API_SECRET`, and `POLY_API_PASSPHRASE`.
+- Correct `POLY_SIGNATURE_TYPE` and, when needed, `POLY_PROXY_ADDRESS`.
+
+Run this before live trading:
+
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml doctor --live --check-client
+```
 
 ## Never Commit
 
-- Private keys or seed phrases.
+- Private keys, seed phrases, or wallet export files.
 - Polymarket API key, secret, or passphrase.
 - `.env` files with real values.
-- Execution receipts from a real account.
-- Runtime outbox files, seen-state files, local dashboards, and logs.
+- Local SQLite databases.
+- Live receipts, order IDs, account balances, logs, or dashboards.
 
-## Live Execution Checklist
+## Live Checklist
 
-1. Use a dedicated low-balance wallet.
-2. Confirm all strategy filters and outbox contents.
-3. Run preflight and dry-run first.
-4. Set only the execution gate for the exact executor you intend to run.
-5. Limit `--max-trades` and `--max-usdc`.
-6. Monitor `external_execution_receipts.csv` separately from simulated PnL.
-
-Simulation PnL, external execution receipts, and redeem-confirmed realized PnL
-must be reported separately.
+1. Confirm you are allowed to trade on the platform from your jurisdiction.
+2. Use a dedicated low-balance wallet.
+3. Start in dry-run mode and inspect rejects, intents, and receipts.
+4. Keep `stake_usdc`, `max_daily_usdc`, and `--execute-limit` small.
+5. Run `doctor --live --check-client`.
+6. Watch the terminal and `.runtime` database while live mode is active.

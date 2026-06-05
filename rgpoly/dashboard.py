@@ -65,7 +65,7 @@ def render_html(store: Store) -> str:
     <h2>Strategy Counts</h2>
     {_table(["strategy", "signals", "approved", "rejected"], strategy_rows)}
     <h2>Ready / Recent Intents</h2>
-    {_table(["id", "strategy", "status", "amount_usdc", "max_price", "outcome", "title", "created_at"], intents)}
+    {_table(["id", "strategy", "status", "amount_usdc", "max_price", "tick_size", "neg_risk", "outcome", "title", "created_at"], intents)}
     <h2>Recent Signals</h2>
     {_table(["id", "strategy", "status", "reason", "wallet_alias", "outcome", "source_price", "best_ask", "title", "created_at"], signals)}
     <h2>Recent Receipts</h2>
@@ -93,4 +93,3 @@ def export_table(store: Store, table: str, path: Path) -> None:
         writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
-
