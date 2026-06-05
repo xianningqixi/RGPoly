@@ -44,7 +44,16 @@ python -m rgpoly --config .\config\rgpoly.toml run --live --execute-limit 1
 
 ## 配置改哪里
 
-你主要改这个文件：
+优先在前端页面改：
+
+```text
+http://127.0.0.1:8765/config
+```
+
+页面里可以改运行模式、轮询参数、金额风控、每个策略的钱包、金额、价格、
+关键词和允许结果。保存后会写入本地配置文件。
+
+本地配置文件在这里：
 
 ```text
 config\rgpoly.toml
@@ -180,6 +189,7 @@ python -m rgpoly --config .\config\rgpoly.toml run --live --execute-limit 1
 打开 `http://127.0.0.1:8765/` 后，页面顶部就是入口：
 
 - `操作入口`：显示修改配置、模拟运行、实盘运行、检查状态的命令。
+- `修改配置`：打开配置表单，保存到 `config\rgpoly.toml`。
 - `运行概览`：看当前信号、订单、回执数量。
 - `订单`、`信号`、`回执`、`钱包活动`：直接跳到对应数据表。
 

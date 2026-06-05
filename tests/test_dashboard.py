@@ -3,7 +3,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from rgpoly.dashboard import render_html
+from rgpoly.config import load_config
+from rgpoly.dashboard import render_config_html, render_html
 from rgpoly.store import Store
 
 
@@ -23,6 +24,14 @@ class DashboardTests(unittest.TestCase):
             self.assertIn("run --live --execute-limit 1", html)
         finally:
             store.close()
+
+    def test_config_page_renders_edit_form(self) -> None:
+        config = load_config(Path("config/rgpoly.example.toml"))
+        html = render_config_html(config, Path("config/rgpoly.toml"))
+        self.assertIn("修改 RGPoly 配置", html)
+        self.assertIn("保存配置", html)
+        self.assertIn("execution_mode", html)
+        self.assertIn("strategy_0_wallets", html)
 
 
 if __name__ == "__main__":

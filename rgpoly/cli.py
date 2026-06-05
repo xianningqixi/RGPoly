@@ -5,8 +5,20 @@ import asyncio
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
-from .config import EXECUTION_MODES, load_config, normalize_execution_mode, write_default_config
+from .config import (
+    EXECUTION_MODES,
+    AppConfig,
+    EngineConfig,
+    ExecutionConfig,
+    WalletCopyConfig,
+    load_config,
+    normalize_execution_mode,
+    normalize_order_type,
+    write_config,
+    write_default_config,
+)
 from .execution import DryRunExecutor, LiveClobExecutor
 from .store import Store
 
@@ -279,15 +291,108 @@ def _dashboard(config_path: Path, output: Path) -> int:
         store.close()
 
 
+def _form_value(form: dict[str, list[str]], name: str, default: Any = "") -> str:
+    values = form.get(name)
+    if not values:
+        return str(default)
+    return values[0].strip()
+
+
+def _form_int(form: dict[str, list[str]], name: str, default: int) -> int:
+    return int(_form_value(form, name, default))
+
+
+def _form_float(form: dict[str, list[str]], name: str, default: float) -> float:
+    return float(_form_value(form, name, default))
+
+
+def _csv_tuple(value: str) -> tuple[str, ...]:
+    return tuple(item.strip() for item in value.replace("\n", ",").split(",") if item.strip())
+
+
+def _wallets(value: str) -> dict[str, str]:
+    wallets: dict[str, str] = {}
+    for raw_line in value.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if "=" in line:
+            alias, address = line.split("=", 1)
+        elif "," in line:
+            alias, address = line.split(",", 1)
+        else:
+            raise ValueError(f"钱包行格式错误：{line}")
+        alias = alias.strip().strip('"')
+        address = address.strip().strip('"').lower()
+        if not alias or not address:
+            raise ValueError(f"钱包行缺少 alias 或地址：{line}")
+        wallets[alias] = address
+    return wallets
+
+
+def _config_from_form(form: dict[str, list[str]], current: AppConfig) -> AppConfig:
+    strategy_count = _form_int(form, "strategy_count", len(current.wallet_copy))
+    strategies: list[WalletCopyConfig] = []
+    for idx in range(strategy_count):
+        previous = current.wallet_copy[idx]
+        prefix = f"strategy_{idx}_"
+        strategies.append(
+            WalletCopyConfig(
+                name=_form_value(form, f"{prefix}name", previous.name),
+                enabled=f"{prefix}enabled" in form,
+                wallets=_wallets(_form_value(form, f"{prefix}wallets", "")),
+                stake_usdc=_form_float(form, f"{prefix}stake_usdc", previous.stake_usdc),
+                min_entry_price=_form_float(form, f"{prefix}min_entry_price", previous.min_entry_price),
+                max_price=_form_float(form, f"{prefix}max_price", previous.max_price),
+                max_source_to_ask_gap=_form_float(
+                    form,
+                    f"{prefix}max_source_to_ask_gap",
+                    previous.max_source_to_ask_gap,
+                ),
+                min_ask_depth_usdc=_form_float(form, f"{prefix}min_ask_depth_usdc", previous.min_ask_depth_usdc),
+                min_source_usdc=_form_float(form, f"{prefix}min_source_usdc", previous.min_source_usdc),
+                max_signal_age_sec=_form_float(form, f"{prefix}max_signal_age_sec", previous.max_signal_age_sec),
+                required_title_keywords=_csv_tuple(_form_value(form, f"{prefix}required_title_keywords")),
+                blocked_title_keywords=_csv_tuple(_form_value(form, f"{prefix}blocked_title_keywords")),
+                allowed_outcomes=_csv_tuple(_form_value(form, f"{prefix}allowed_outcomes")) or ("Yes", "No"),
+            )
+        )
+    return AppConfig(
+        engine=EngineConfig(
+            db_path=Path(_form_value(form, "engine_db_path", current.engine.db_path)),
+            poll_interval_ms=_form_int(form, "engine_poll_interval_ms", current.engine.poll_interval_ms),
+            activity_limit=_form_int(form, "engine_activity_limit", current.engine.activity_limit),
+            http_timeout_sec=_form_float(form, "engine_http_timeout_sec", current.engine.http_timeout_sec),
+        ),
+        execution=ExecutionConfig(
+            mode=normalize_execution_mode(_form_value(form, "execution_mode", current.execution.mode)),
+            execute_limit_per_loop=_form_int(
+                form,
+                "execution_execute_limit_per_loop",
+                current.execution.execute_limit_per_loop,
+            ),
+            live_enabled_env=current.execution.live_enabled_env,
+            ack_value=current.execution.ack_value,
+            max_daily_usdc=_form_float(form, "execution_max_daily_usdc", current.execution.max_daily_usdc),
+            max_open_intents=_form_int(form, "execution_max_open_intents", current.execution.max_open_intents),
+            tick_size=_form_value(form, "execution_tick_size", current.execution.tick_size),
+            default_neg_risk="execution_default_neg_risk" in form,
+            order_type=normalize_order_type(_form_value(form, "execution_order_type", current.execution.order_type)),
+        ),
+        wallet_copy=tuple(strategies),
+    )
+
+
 def _dashboard_server(config_path: Path, host: str, port: int) -> int:
-    from .dashboard import render_html
+    from .dashboard import render_config_html, render_html
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802
-            if self.path not in {"/", "/index.html", "/health"}:
+            parsed = urlparse(self.path)
+            if parsed.path not in {"/", "/index.html", "/health", "/config"}:
                 self.send_error(404)
                 return
-            if self.path == "/health":
+            if parsed.path == "/health":
                 payload = b"ok"
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain; charset=utf-8")
@@ -296,6 +401,15 @@ def _dashboard_server(config_path: Path, host: str, port: int) -> int:
                 self.wfile.write(payload)
                 return
             config = load_config(config_path)
+            if parsed.path == "/config":
+                message = "配置已保存。正在运行的交易进程需要重启后才会使用新配置。" if "saved=1" in parsed.query else ""
+                payload = render_config_html(config, config_path, message=message).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
             store = Store(config.engine.db_path)
             try:
                 payload = render_html(
@@ -310,6 +424,30 @@ def _dashboard_server(config_path: Path, host: str, port: int) -> int:
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
+
+        def do_POST(self) -> None:  # noqa: N802
+            parsed = urlparse(self.path)
+            if parsed.path != "/config":
+                self.send_error(404)
+                return
+            current = load_config(config_path)
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            raw_body = self.rfile.read(length).decode("utf-8")
+            form = parse_qs(raw_body, keep_blank_values=True)
+            try:
+                updated = _config_from_form(form, current)
+                write_config(config_path, updated)
+            except Exception as exc:
+                payload = render_config_html(current, config_path, error=str(exc)).encode("utf-8")
+                self.send_response(400)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+            self.send_response(303)
+            self.send_header("Location", "/config?saved=1")
+            self.end_headers()
 
         def log_message(self, format: str, *args: Any) -> None:
             return

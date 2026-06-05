@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import tomllib
 from dataclasses import dataclass, field
@@ -130,3 +131,70 @@ def write_default_config(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     template = Path(__file__).resolve().parents[1] / "config" / "rgpoly.example.toml"
     shutil.copyfile(template, path)
+
+
+def _toml_string(value: Any) -> str:
+    return json.dumps(str(value), ensure_ascii=False)
+
+
+def _toml_bool(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def _toml_array(values: tuple[str, ...]) -> str:
+    return "[" + ", ".join(_toml_string(value) for value in values) + "]"
+
+
+def dumps_config(config: AppConfig) -> str:
+    lines = [
+        "[engine]",
+        "# Local SQLite runtime database. Runtime data is not committed.",
+        f"db_path = {_toml_string(config.engine.db_path)}",
+        "# Poll interval in milliseconds. Smaller is faster and heavier on APIs.",
+        f"poll_interval_ms = {config.engine.poll_interval_ms}",
+        f"activity_limit = {config.engine.activity_limit}",
+        f"http_timeout_sec = {config.engine.http_timeout_sec}",
+        "",
+        "[execution]",
+        "# manual = monitor only; dry_run = simulated fills; live = real orders.",
+        f"mode = {_toml_string(config.execution.mode)}",
+        f"execute_limit_per_loop = {config.execution.execute_limit_per_loop}",
+        f"live_enabled_env = {_toml_string(config.execution.live_enabled_env)}",
+        f"ack_value = {_toml_string(config.execution.ack_value)}",
+        f"max_daily_usdc = {config.execution.max_daily_usdc}",
+        f"max_open_intents = {config.execution.max_open_intents}",
+        f"tick_size = {_toml_string(config.execution.tick_size)}",
+        f"default_neg_risk = {_toml_bool(config.execution.default_neg_risk)}",
+        f"order_type = {_toml_string(config.execution.order_type)}",
+        "",
+    ]
+    for strategy in config.wallet_copy:
+        lines.extend(
+            [
+                "[[wallet_copy]]",
+                "# Each wallet_copy block is one copy-trading strategy.",
+                f"name = {_toml_string(strategy.name)}",
+                f"enabled = {_toml_bool(strategy.enabled)}",
+                f"stake_usdc = {strategy.stake_usdc}",
+                f"min_entry_price = {strategy.min_entry_price}",
+                f"max_price = {strategy.max_price}",
+                f"max_source_to_ask_gap = {strategy.max_source_to_ask_gap}",
+                f"min_ask_depth_usdc = {strategy.min_ask_depth_usdc}",
+                f"min_source_usdc = {strategy.min_source_usdc}",
+                f"max_signal_age_sec = {strategy.max_signal_age_sec}",
+                f"required_title_keywords = {_toml_array(strategy.required_title_keywords)}",
+                f"blocked_title_keywords = {_toml_array(strategy.blocked_title_keywords)}",
+                f"allowed_outcomes = {_toml_array(strategy.allowed_outcomes)}",
+                "",
+                "[wallet_copy.wallets]",
+            ]
+        )
+        for alias, wallet in strategy.wallets.items():
+            lines.append(f"{_toml_string(alias)} = {_toml_string(wallet)}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_config(path: Path, config: AppConfig) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(dumps_config(config), encoding="utf-8")
