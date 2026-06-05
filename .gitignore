@@ -40,6 +40,7 @@ dashboard.html
 
 # Large migration bundles
 assets/
+work/
 *.zip
 
 # Local OS/editor files
