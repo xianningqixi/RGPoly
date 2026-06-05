@@ -1,0 +1,3 @@
+display_name: Polymarket Strict Sim
+short_description: Operate and migrate the Polymarket strict simulation and preflight system.
+default_prompt: Check the Polymarket strict simulation status, preserve current data, and report final-only PnL, runtime state, preflight candidates, and migration readiness without enabling real-money automatic orders.

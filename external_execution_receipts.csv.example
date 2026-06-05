@@ -1,0 +1,2 @@
+receipt_ts,ticket_id,intent_id,source_strategy,execution_status,actual_order_id,actual_fill_price,actual_shares,actual_spent_usdc,actual_fee_usdc,notes
+

@@ -1,0 +1,4 @@
+name: polymarket-copytrading-full-stack
+display_name: Polymarket Copytrading Full Stack
+short_description: Operate and migrate the Polymarket copytrading simulator, dashboard, preflight, outbox, and optional executor stack.
+default_prompt: Check the Polymarket copytrading system status, separate simulation from execution receipts, and report final-only PnL.

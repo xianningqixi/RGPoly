@@ -1,0 +1,14 @@
+python -u .\polymarket_auto_arb.py `
+  --sample-size 200 `
+  --interval 45 `
+  --min-gross-edge 0.004 `
+  --min-net-edge 0.003 `
+  --min-total-profit 0.25 `
+  --min-shares 10 `
+  --max-usdc-per-trade 10 `
+  --max-trades 0 `
+  --log .\dry_run_arb_log.csv `
+  --json-log .\dry_run_arb_log.jsonl `
+  --alert-file .\latest_arb_alert.txt `
+  --beep-on-opportunity `
+  --lang zh

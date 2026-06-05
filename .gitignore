@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Secrets and local auth
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+*.secret
+
+# Runtime data, logs, generated reports, and execution state
+*.csv
+!*.csv.example
+*.json
+*.jsonl
+*.log
+*.html
+*_alert.txt
+*_status.txt
+*_console.log
+*_error.log
+*_seen.json
+.seen_ticket_ids.json
+execution_outbox.*
+external_execution_receipts.csv
+wallet_copy_exec_log.*
+dry_run_arb_log.*
+opportunities.csv
+dashboard.html
+
+# Large migration bundles
+assets/
+*.zip
+
+# Local OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
