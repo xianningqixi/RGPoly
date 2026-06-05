@@ -74,6 +74,16 @@ Generate the local dashboard:
 python -m rgpoly --config .\config\rgpoly.toml dashboard --output .\.runtime\rgpoly_dashboard.html
 ```
 
+Serve the dashboard as a local frontend:
+
+```powershell
+python -m rgpoly --config .\config\rgpoly.toml dashboard --output .\.runtime\index.html
+python -m http.server 8765 --bind 127.0.0.1 --directory .runtime
+```
+
+Open `http://127.0.0.1:8765/`. Regenerate `index.html` after a polling or
+execution run to refresh the page.
+
 ## Live Operation
 
 Set credentials in your shell. Do not commit real values.
@@ -142,6 +152,8 @@ python -m rgpoly --config .\config\rgpoly.toml run --live --execute-limit 1
 python -m rgpoly --config .\config\rgpoly.toml execute
 python -m rgpoly --config .\config\rgpoly.toml execute --live --limit 1
 python -m rgpoly --config .\config\rgpoly.toml export-csv --table receipts --output .\.runtime\receipts.csv
+python -m rgpoly --config .\config\rgpoly.toml dashboard --output .\.runtime\index.html
+python -m http.server 8765 --bind 127.0.0.1 --directory .runtime
 ```
 
 ## Safety
